@@ -1,0 +1,52 @@
+{
+    "actorSpecification": 1,
+    "name": "servicetitan-mcp-server",
+    "title": "ServiceTitan MCP Server",
+    "description": "AI-native MCP server for ServiceTitan — job management, customer lookup, scheduling, dispatching, and invoicing for home services contractors.",
+    "version": "0.1.0",
+    "buildTag": "latest",
+    "input": {
+        "schemaVersion": 1,
+        "title": "ServiceTitan MCP Server Input",
+        "description": "Configuration for the ServiceTitan MCP server",
+        "type": "object",
+        "properties": {
+            "ST_CLIENT_ID": {
+                "title": "ServiceTitan Client ID",
+                "type": "string",
+                "description": "OAuth2 Client ID from ServiceTitan Developer Portal",
+                "editor": "textfield",
+                "isSecret": true
+            },
+            "ST_CLIENT_SECRET": {
+                "title": "ServiceTitan Client Secret",
+                "type": "string",
+                "description": "OAuth2 Client Secret from ServiceTitan Developer Portal",
+                "editor": "textfield",
+                "isSecret": true
+            },
+            "ST_APP_KEY": {
+                "title": "ServiceTitan App Key",
+                "type": "string",
+                "description": "Application Key from ServiceTitan Developer Portal",
+                "editor": "textfield",
+                "isSecret": true
+            },
+            "ST_TENANT_ID": {
+                "title": "ServiceTitan Tenant ID",
+                "type": "string",
+                "description": "Your ServiceTitan Tenant ID",
+                "editor": "textfield"
+            },
+            "ST_ENVIRONMENT": {
+                "title": "Environment",
+                "type": "string",
+                "description": "ServiceTitan environment (production or integration)",
+                "default": "production",
+                "enum": ["production", "integration"],
+                "editor": "select"
+            }
+        },
+        "required": ["ST_CLIENT_ID", "ST_CLIENT_SECRET", "ST_APP_KEY", "ST_TENANT_ID"]
+    }
+}
