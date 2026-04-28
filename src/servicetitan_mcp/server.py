@@ -79,6 +79,7 @@ mcp.tool(get_customer)
 mcp.tool(list_jobs)
 mcp.tool(get_job)
 mcp.tool(create_job)
+mcp.tool(list_jobs_with_details)
 
 # Scheduling
 mcp.tool(get_available_appointments)
