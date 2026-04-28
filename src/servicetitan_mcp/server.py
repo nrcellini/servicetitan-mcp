@@ -7,6 +7,7 @@ scheduling, dispatching, and invoicing for home services contractors.
 
 from __future__ import annotations
 
+import sys
 import os
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
@@ -17,10 +18,11 @@ from fastmcp import FastMCP
 from .client import init_client, close_client
 from .models.types import ServiceTitanConfig
 from .tools.customers import search_customers, get_customer
-from .tools.jobs import list_jobs, get_job, create_job
+from .tools.jobs import list_jobs, get_job, create_job, list_jobs_with_details 
 from .tools.scheduling import get_available_appointments, schedule_appointment
 from .tools.dispatching import list_technicians, dispatch_technician
 from .tools.invoices import get_invoice, list_unpaid_invoices
+
 
 
 # ---------------------------------------------------------------------------
@@ -36,14 +38,14 @@ async def lifespan(server: FastMCP) -> AsyncIterator[None]:
     try:
         config = ServiceTitanConfig()  # type: ignore[call-arg]
     except Exception as e:
-        print(f"⚠️  ServiceTitan config error: {e}")
+        print(f" ServiceTitan config error: {e}")
         print("Set ST_CLIENT_ID, ST_CLIENT_SECRET, ST_APP_KEY, ST_TENANT_ID env vars.")
         print("Starting in demo mode — tools will return errors until configured.")
         yield
         return
 
     await init_client(config)
-    print(f"✅ ServiceTitan MCP server connected (tenant: {config.tenant_id}, env: {config.environment})")
+    print(f"ServiceTitan MCP server connected (tenant: {config.tenant_id}, env: {config.environment})")
     try:
         yield
     finally:

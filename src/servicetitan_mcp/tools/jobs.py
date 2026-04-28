@@ -158,6 +158,97 @@ async def create_job(
     except Exception as e:
         return f"Unexpected error: {e}"
 
+# ---------------------------------------------------------------------------
+# added tool definitions 
+
+async def list_jobs_with_details(
+    status: Optional[str] = None,
+    created_after: Optional[str] = None,
+    created_before: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 25,
+) -> str:
+    """List jobs with customer name, job type, first appointment, and assigned technicians joined in.
+
+    Returns a flat row per job — no follow-up calls needed for a basic report.
+    Use this instead of list_jobs when you need names and dates, not just IDs.
+
+    Args:
+        status: Filter by job status — Scheduled, InProgress, Completed, Canceled, Hold.
+        created_after: Only jobs created after this date (ISO 8601).
+        created_before: Only jobs created before this date.
+        page: Page number.
+        page_size: Results per page (max 50).
+    """
+    try:
+        client = get_client()
+        params: dict[str, Any] = {"page": page, "pageSize": min(page_size, 50)}
+        if status:
+            params["jobStatus"] = status
+        if created_after:
+            params["createdOnOrAfter"] = created_after
+        if created_before:
+            params["createdBefore"] = created_before
+
+        jobs_resp = await client.get("jpm", "jobs", params=params)
+        jobs = jobs_resp.get("data", []) if isinstance(jobs_resp, dict) else []
+        if not jobs:
+            return "No jobs found matching your filters."
+
+        # Collect IDs we need to resolve
+        customer_ids = {j["customerId"] for j in jobs if j.get("customerId")}
+        appt_ids = {j["firstAppointmentId"] for j in jobs if j.get("firstAppointmentId")}
+        job_type_ids = {j["jobTypeId"] for j in jobs if j.get("jobTypeId")}
+
+        # Batch fetch lookups in parallel
+        import asyncio
+        customers, appointments, job_types, assignments = await asyncio.gather(
+            _fetch_by_ids(client, "crm", "customers", customer_ids),
+            _fetch_by_ids(client, "jpm", "appointments", appt_ids),
+            _fetch_by_ids(client, "jpm", "job-types", job_type_ids),
+            client.get("dispatch", "appointment-assignments", params={
+                "appointmentIds": ",".join(str(i) for i in appt_ids),
+                "active": "true",
+            }) if appt_ids else {"data": []},
+        )
+
+        # Build lookups
+        cust_map = {c["id"]: c.get("name", "Unknown") for c in customers}
+        appt_map = {a["id"]: a for a in appointments}
+        type_map = {t["id"]: t.get("name", "Unknown") for t in job_types}
+        tech_map: dict[int, list[str]] = {}
+        for a in assignments.get("data", []):
+            tech_map.setdefault(a["appointmentId"], []).append(
+                a.get("technicianName", f"Tech {a.get('technicianId')}")
+            )
+
+        # Format rows
+        lines = [f"Found {len(jobs)} job(s):"]
+        for j in jobs:
+            jid = j.get("id")
+            appt = appt_map.get(j.get("firstAppointmentId"), {})
+            techs = tech_map.get(j.get("firstAppointmentId"), ["(unassigned)"])
+            lines.append(
+                f"\n• Job {jid} ({j.get('jobStatus')}) — "
+                f"{type_map.get(j.get('jobTypeId'), '?')} for "
+                f"{cust_map.get(j.get('customerId'), '?')}"
+            )
+            lines.append(
+                f"  First appt: {str(appt.get('start',''))[:16].replace('T',' ')} | "
+                f"Tech: {', '.join(techs)}"
+            )
+        return "\n".join(lines)
+    except ServiceTitanAPIError as e:
+        return f"Error listing jobs with details: {e}"
+
+
+async def _fetch_by_ids(client, module: str, path: str, ids: set[int]) -> list[dict]:
+    """Helper: fetch records by ID. Uses ids= filter if API supports it, else fans out."""
+    if not ids:
+        return []
+    # ServiceTitan supports ?ids=1,2,3 on most list endpoints
+    resp = await client.get(module, path, params={"ids": ",".join(str(i) for i in ids), "pageSize": 200})
+    return resp.get("data", []) if isinstance(resp, dict) else []
 
 # ---------------------------------------------------------------------------
 # Formatting helpers
