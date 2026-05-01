@@ -25,6 +25,10 @@ async def list_jobs(
     created_before: Optional[str] = None,
     completed_after: Optional[str] = None,
     completed_before: Optional[str] = None,
+    appointment_status: Optional[int] = None,
+    job_status: Optional[int] = None,
+    first_appointment_after: Optional[str] = None,
+    first_appointment_before: Optional[str] = None,
     sort_by: Optional[str] = None,
     sort_direction: Optional[str] = None,
     page: int = 1,
@@ -43,6 +47,8 @@ async def list_jobs(
         created_before: Only jobs created before this date.
         completed_after: Only jobs completed after this date.
         completed_before: Only jobs completed before this date.
+        appointment_status: Values: [Scheduled, Dispatched, Working, Hold, Done, Canceled],
+        job_status: Optional[int] = None,
         sort_by: Field to sort by (e.g. "createdOn", "modifiedOn").
         sort_direction: "asc" or "desc".
         page: Page number.
@@ -63,14 +69,22 @@ async def list_jobs(
             params["technicianId"] = technician_id
         if job_type_id:
             params["jobTypeId"] = job_type_id
-        if created_after:
-            params["createdOnOrAfter"] = created_after
-        if created_before:
-            params["createdBefore"] = created_before
         if completed_after:
             params["completedOnOrAfter"] = completed_after
         if completed_before:
             params["completedBefore"] = completed_before
+        if created_before:
+            params["createdOnOrAfter"] = created_before
+        if created_after:
+            params["createdOnOrAfter"] = created_after
+        if first_appointment_after:
+            params["firstAppointmentOnOrAfter"] = first_appointment_after
+        if first_appointment_before:
+            params["firstAppointmentBefore"] = first_appointment_before
+        if appointment_status:
+            params["appointmentStatus"] = appointment_status
+        if job_status:
+            params["jobStatus"] = job_status
         if sort_by:
             params["orderBy"] = sort_by
         if sort_direction:
@@ -189,6 +203,10 @@ async def list_jobs_with_details(
             params["createdOnOrAfter"] = created_after
         if created_before:
             params["createdBefore"] = created_before
+        if completed_after:
+            params["completedOnOrAfter"] = completed_after
+        if completed_before:
+            params["completedBefore"] = completed_before
 
         jobs_resp = await client.get("jpm", "jobs", params=params)
         jobs = jobs_resp.get("data", []) if isinstance(jobs_resp, dict) else []
