@@ -240,6 +240,8 @@ async def list_jobs_with_details(
         return "\n".join(lines)
     except ServiceTitanAPIError as e:
         return f"Error listing jobs with details: {e}"
+    except Exception as e:
+        return f"Unexpected error: {e}"
 
 
 async def _fetch_by_ids(client, module: str, path: str, ids: set[int]) -> list[dict]:
