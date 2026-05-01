@@ -135,13 +135,24 @@ async def get_dispatch_board(date: Optional[str] = None) -> str:
         )
 
         location_ids = {j["locationId"] for j in jobs_resp if j.get("locationId")}
+        customer_ids = {j["customerId"] for j in jobs_resp if j.get("customerId")}
 
-        # Round 3: locations
-        locations_resp = await client.get("crm", "locations", params={
-            "ids": ",".join(str(i) for i in location_ids),
-            "pageSize": 200,
-        }) if location_ids else {"data": []}
+        async def _empty() -> dict:
+            return {"data": []}
+
+        # Round 3: locations and customers in parallel
+        locations_resp, customers_resp = await asyncio.gather(
+            client.get("crm", "locations", params={
+                "ids": ",".join(str(i) for i in location_ids),
+                "pageSize": 200,
+            }) if location_ids else _empty(),
+            client.get("crm", "customers", params={
+                "ids": ",".join(str(i) for i in customer_ids),
+                "pageSize": 200,
+            }) if customer_ids else _empty(),
+        )
         locations: list[dict] = locations_resp.get("data", []) if isinstance(locations_resp, dict) else []
+        customers: list[dict] = customers_resp.get("data", []) if isinstance(customers_resp, dict) else []
 
         # Build lookup maps
         shift_by_tech: dict[int, list[dict]] = {}
@@ -163,6 +174,7 @@ async def get_dispatch_board(date: Optional[str] = None) -> str:
 
         job_map = {j["id"]: j for j in jobs_resp}
         loc_map = {l["id"]: l for l in locations}
+        cust_map = {c["id"]: c.get("name", "Unknown") for c in customers}
 
         # Format the board
         lines = [f"Dispatch Board — {target_date}", "=" * 50]
@@ -197,7 +209,8 @@ async def get_dispatch_board(date: Optional[str] = None) -> str:
                         f"  [{to_est_time(appt.get('start'))} – {to_est_time(appt.get('end'))}]"
                         f"  Job #{job.get('jobNumber', '?')} • {job.get('jobTypeName', '?')}"
                     )
-                    lines.append(f"    Customer: {job.get('customerName', '?')}")
+                    cust_name = cust_map.get(job.get("customerId"), job.get("customerName", "?"))
+                    lines.append(f"    Customer: {cust_name}")
                     if addr_str:
                         lines.append(f"    Address:  {addr_str}")
                     lines.append(f"    Status:   {appt.get('status', '?')}")
@@ -216,7 +229,7 @@ async def get_dispatch_board(date: Optional[str] = None) -> str:
                 lines.append(
                     f"  [{to_est_time(appt.get('start'))}]"
                     f"  Job #{job.get('jobNumber','?')} • {job.get('jobTypeName','?')}"
-                    f" — {job.get('customerName','?')}"
+                    f" — {cust_map.get(job.get('customerId'), job.get('customerName', '?'))}"
                 )
                 if addr_str:
                     lines.append(f"    {addr_str}")
