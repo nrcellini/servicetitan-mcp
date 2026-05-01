@@ -20,7 +20,7 @@ from .models.types import ServiceTitanConfig
 from .tools.customers import search_customers, get_customer
 from .tools.jobs import list_jobs, get_job, create_job, list_jobs_with_details 
 from .tools.scheduling import get_available_appointments, schedule_appointment
-from .tools.dispatching import list_technicians, dispatch_technician
+from .tools.dispatching import list_technicians, dispatch_technician, get_dispatch_board
 from .tools.invoices import get_invoice, list_unpaid_invoices
 
 
@@ -88,6 +88,7 @@ mcp.tool(schedule_appointment)
 # Dispatching
 mcp.tool(list_technicians)
 mcp.tool(dispatch_technician)
+mcp.tool(get_dispatch_board)
 
 # Invoices
 mcp.tool(get_invoice)

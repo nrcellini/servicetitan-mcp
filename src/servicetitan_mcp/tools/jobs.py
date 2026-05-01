@@ -11,9 +11,11 @@ ServiceTitan Job Planning & Management (JPM) API:
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Optional
 
 from ..client import get_client, ServiceTitanAPIError
+from ..utils import to_est, to_est_date
 
 
 async def list_jobs(
@@ -21,12 +23,11 @@ async def list_jobs(
     customer_id: Optional[int] = None,
     technician_id: Optional[int] = None,
     job_type_id: Optional[int] = None,
+    business_unit_id: Optional[int] = None,
     created_after: Optional[str] = None,
     created_before: Optional[str] = None,
     completed_after: Optional[str] = None,
     completed_before: Optional[str] = None,
-    appointment_status: Optional[int] = None,
-    job_status: Optional[int] = None,
     first_appointment_after: Optional[str] = None,
     first_appointment_before: Optional[str] = None,
     sort_by: Optional[str] = None,
@@ -43,12 +44,13 @@ async def list_jobs(
         customer_id: Filter by customer ID.
         technician_id: Filter by assigned technician ID.
         job_type_id: Filter by job type ID.
+        business_unit_id: Filter by business unit ID.
         created_after: Only jobs created after this date (ISO 8601, e.g. "2024-01-01").
-        created_before: Only jobs created before this date.
-        completed_after: Only jobs completed after this date.
-        completed_before: Only jobs completed before this date.
-        appointment_status: Values: [Scheduled, Dispatched, Working, Hold, Done, Canceled],
-        job_status: Optional[int] = None,
+        created_before: Only jobs created before this date (ISO 8601).
+        completed_after: Only jobs completed after this date (ISO 8601).
+        completed_before: Only jobs completed before this date (ISO 8601).
+        first_appointment_after: Only jobs with first appointment on or after this date.
+        first_appointment_before: Only jobs with first appointment before this date.
         sort_by: Field to sort by (e.g. "createdOn", "modifiedOn").
         sort_direction: "asc" or "desc".
         page: Page number.
@@ -65,26 +67,23 @@ async def list_jobs(
         if customer_id:
             params["customerId"] = customer_id
         if technician_id:
-            # TODO: verify param name — may be technicianId or assignedTechnicianId
             params["technicianId"] = technician_id
         if job_type_id:
             params["jobTypeId"] = job_type_id
+        if business_unit_id:
+            params["businessUnitId"] = business_unit_id
+        if created_after:
+            params["createdOnOrAfter"] = created_after
+        if created_before:
+            params["createdBefore"] = created_before
         if completed_after:
             params["completedOnOrAfter"] = completed_after
         if completed_before:
             params["completedBefore"] = completed_before
-        if created_before:
-            params["createdOnOrAfter"] = created_before
-        if created_after:
-            params["createdOnOrAfter"] = created_after
         if first_appointment_after:
             params["firstAppointmentOnOrAfter"] = first_appointment_after
         if first_appointment_before:
             params["firstAppointmentBefore"] = first_appointment_before
-        if appointment_status:
-            params["appointmentStatus"] = appointment_status
-        if job_status:
-            params["jobStatus"] = job_status
         if sort_by:
             params["orderBy"] = sort_by
         if sort_direction:
@@ -108,7 +107,6 @@ async def get_job(job_id: int) -> str:
         client = get_client()
         job = await client.get("jpm", f"jobs/{job_id}")
 
-        # Fetch notes too
         try:
             notes = await client.get("jpm", f"jobs/{job_id}/notes")
         except Exception:
@@ -161,7 +159,6 @@ async def create_job(
         if campaign_id:
             body["campaignId"] = campaign_id
 
-        # TODO (Day 2): verify POST body schema against sandbox
         result = await client.post("jpm", "jobs", json_body=body)
 
         if isinstance(result, dict) and result.get("id"):
@@ -172,13 +169,16 @@ async def create_job(
     except Exception as e:
         return f"Unexpected error: {e}"
 
-# ---------------------------------------------------------------------------
-# added tool definitions 
 
 async def list_jobs_with_details(
     status: Optional[str] = None,
+    technician_id: Optional[int] = None,
+    business_unit_id: Optional[int] = None,
+    appointment_date: Optional[str] = None,
     created_after: Optional[str] = None,
     created_before: Optional[str] = None,
+    completed_after: Optional[str] = None,
+    completed_before: Optional[str] = None,
     page: int = 1,
     page_size: int = 25,
 ) -> str:
@@ -189,8 +189,13 @@ async def list_jobs_with_details(
 
     Args:
         status: Filter by job status — Scheduled, InProgress, Completed, Canceled, Hold.
+        technician_id: Filter by assigned technician ID.
+        business_unit_id: Filter by business unit ID.
+        appointment_date: Show jobs with first appointment on this date (YYYY-MM-DD).
         created_after: Only jobs created after this date (ISO 8601).
-        created_before: Only jobs created before this date.
+        created_before: Only jobs created before this date (ISO 8601).
+        completed_after: Only jobs completed after this date (ISO 8601).
+        completed_before: Only jobs completed before this date (ISO 8601).
         page: Page number.
         page_size: Results per page (max 50).
     """
@@ -199,6 +204,13 @@ async def list_jobs_with_details(
         params: dict[str, Any] = {"page": page, "pageSize": min(page_size, 50)}
         if status:
             params["jobStatus"] = status
+        if technician_id:
+            params["technicianId"] = technician_id
+        if business_unit_id:
+            params["businessUnitId"] = business_unit_id
+        if appointment_date:
+            params["firstAppointmentOnOrAfter"] = appointment_date
+            params["firstAppointmentBefore"] = appointment_date + "T23:59:59"
         if created_after:
             params["createdOnOrAfter"] = created_after
         if created_before:
@@ -213,46 +225,39 @@ async def list_jobs_with_details(
         if not jobs:
             return "No jobs found matching your filters."
 
-        # Collect IDs we need to resolve
         customer_ids = {j["customerId"] for j in jobs if j.get("customerId")}
         appt_ids = {j["firstAppointmentId"] for j in jobs if j.get("firstAppointmentId")}
         job_type_ids = {j["jobTypeId"] for j in jobs if j.get("jobTypeId")}
 
-        # Batch fetch lookups in parallel
-        import asyncio
         customers, appointments, job_types, assignments = await asyncio.gather(
             _fetch_by_ids(client, "crm", "customers", customer_ids),
             _fetch_by_ids(client, "jpm", "appointments", appt_ids),
             _fetch_by_ids(client, "jpm", "job-types", job_type_ids),
-            client.get("dispatch", "appointment-assignments", params={
-                "appointmentIds": ",".join(str(i) for i in appt_ids),
-                "active": "true",
-            }) if appt_ids else {"data": []},
+            _fetch_assignments(client, appt_ids),
         )
 
-        # Build lookups
         cust_map = {c["id"]: c.get("name", "Unknown") for c in customers}
         appt_map = {a["id"]: a for a in appointments}
         type_map = {t["id"]: t.get("name", "Unknown") for t in job_types}
         tech_map: dict[int, list[str]] = {}
-        for a in assignments.get("data", []):
+        for a in assignments:
             tech_map.setdefault(a["appointmentId"], []).append(
                 a.get("technicianName", f"Tech {a.get('technicianId')}")
             )
 
-        # Format rows
         lines = [f"Found {len(jobs)} job(s):"]
         for j in jobs:
             jid = j.get("id")
             appt = appt_map.get(j.get("firstAppointmentId"), {})
             techs = tech_map.get(j.get("firstAppointmentId"), ["(unassigned)"])
+            appt_start = to_est(appt.get("start")) if appt else ""
             lines.append(
                 f"\n• Job {jid} ({j.get('jobStatus')}) — "
                 f"{type_map.get(j.get('jobTypeId'), '?')} for "
                 f"{cust_map.get(j.get('customerId'), '?')}"
             )
             lines.append(
-                f"  First appt: {str(appt.get('start',''))[:16].replace('T',' ')} | "
+                f"  First appt: {appt_start or 'N/A'} | "
                 f"Tech: {', '.join(techs)}"
             )
         return "\n".join(lines)
@@ -263,12 +268,24 @@ async def list_jobs_with_details(
 
 
 async def _fetch_by_ids(client, module: str, path: str, ids: set[int]) -> list[dict]:
-    """Helper: fetch records by ID. Uses ids= filter if API supports it, else fans out."""
+    """Fetch records by ID set using ids= filter."""
     if not ids:
         return []
-    # ServiceTitan supports ?ids=1,2,3 on most list endpoints
     resp = await client.get(module, path, params={"ids": ",".join(str(i) for i in ids), "pageSize": 200})
     return resp.get("data", []) if isinstance(resp, dict) else []
+
+
+async def _fetch_assignments(client, appt_ids: set[int]) -> list[dict]:
+    """Fetch appointment-assignments for a set of appointment IDs."""
+    if not appt_ids:
+        return []
+    resp = await client.get("dispatch", "appointment-assignments", params={
+        "appointmentIds": ",".join(str(i) for i in appt_ids),
+        "active": "true",
+        "pageSize": 200,
+    })
+    return resp.get("data", []) if isinstance(resp, dict) else []
+
 
 # ---------------------------------------------------------------------------
 # Formatting helpers
@@ -292,7 +309,7 @@ def _format_job_list(result: Any) -> str:
         status = j.get("jobStatus", "Unknown")
         jtype = j.get("jobTypeName", j.get("jobTypeId", "N/A"))
         customer = j.get("customerName", j.get("customerId", "N/A"))
-        created = str(j.get("createdOn", ""))[:10]
+        created = to_est_date(j.get("createdOn"))
 
         lines.append(f"\n• Job #{num} (ID: {jid}) — {status}")
         lines.append(f"  Type: {jtype} | Customer: {customer}")
@@ -320,15 +337,14 @@ def _format_job_detail(job: Any, notes: Any) -> str:
         f"Customer: {job.get('customerName', 'N/A')} (ID: {job.get('customerId', '?')})",
         f"Location: {job.get('locationName', 'N/A')} (ID: {job.get('locationId', '?')})",
         f"Summary: {job.get('summary', 'N/A')}",
-        f"Created: {job.get('createdOn', 'N/A')}",
-        f"Completed: {job.get('completedOn', 'N/A')}",
+        f"Created: {to_est(job.get('createdOn'))}",
+        f"Completed: {to_est(job.get('completedOn')) or 'N/A'}",
     ]
 
     total_amt = job.get("totalAmount")
     if total_amt is not None:
         lines.append(f"Total Amount: ${total_amt:.2f}")
 
-    # Notes
     note_data = None
     if isinstance(notes, dict):
         note_data = notes.get("data", [])
@@ -337,9 +353,9 @@ def _format_job_detail(job: Any, notes: Any) -> str:
 
     if note_data:
         lines.append(f"\nNotes ({len(note_data)}):")
-        for n in note_data[:10]:  # Limit to most recent 10
+        for n in note_data[:10]:
             text = n.get("text", "")[:200]
-            date = str(n.get("createdOn", ""))[:10]
+            date = to_est_date(n.get("createdOn"))
             lines.append(f"  [{date}] {text}")
 
     return "\n".join(lines)
