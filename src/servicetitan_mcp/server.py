@@ -8,20 +8,30 @@ scheduling, dispatching, and invoicing for home services contractors.
 from __future__ import annotations
 
 import sys
-import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncIterator
+
+# `mcp dev path/to/server.py` loads this file via importlib as a top-level module, not as
+# servicetitan_mcp.server — prepend the src root so absolute package imports resolve.
+_src_root = Path(__file__).resolve().parent.parent
+if str(_src_root) not in sys.path:
+    sys.path.insert(0, str(_src_root))
 
 from dotenv import load_dotenv
 from fastmcp import FastMCP
 
-from .client import init_client, close_client
-from .models.types import ServiceTitanConfig
-from .tools.customers import search_customers, get_customer
-from .tools.jobs import list_jobs, get_job, create_job, list_jobs_with_details 
-from .tools.scheduling import get_available_appointments, schedule_appointment
-from .tools.dispatching import list_technicians, dispatch_technician, get_dispatch_board
-from .tools.invoices import get_invoice, list_unpaid_invoices
+from servicetitan_mcp.client import init_client, close_client
+from servicetitan_mcp.models.types import ServiceTitanConfig
+from servicetitan_mcp.tools.customers import search_customers, get_customer
+from servicetitan_mcp.tools.jobs import list_jobs, get_job, create_job, list_jobs_with_details
+from servicetitan_mcp.tools.scheduling import get_available_appointments, schedule_appointment
+from servicetitan_mcp.tools.dispatching import (
+    list_technicians,
+    dispatch_technician,
+    get_dispatch_board,
+)
+from servicetitan_mcp.tools.invoices import get_invoice, list_unpaid_invoices
 
 
 
