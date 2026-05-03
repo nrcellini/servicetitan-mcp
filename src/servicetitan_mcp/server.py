@@ -32,7 +32,7 @@ from servicetitan_mcp.tools.dispatching import (
     get_dispatch_board,
 )
 from servicetitan_mcp.tools.invoices import get_invoice, list_unpaid_invoices
-
+from servicetitan_mcp.resources.docs import mcp_llms_full_resource
 
 
 # ---------------------------------------------------------------------------
@@ -71,10 +71,19 @@ mcp = FastMCP(
     instructions=(
         "AI-native interface to ServiceTitan for home services contractors. "
         "Supports customer lookup, job management, appointment scheduling, "
-        "technician dispatching, and invoice tracking."
+        "technician dispatching, and invoice tracking. "
+        "Resource mcp-llms-full (URI: https://modelcontextprotocol.io/llms-full.txt) "
+        "is the full MCP specification/docs bundle as plain text."
     ),
     lifespan=lifespan,
 )
+
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+
+mcp.add_resource(mcp_llms_full_resource())
 
 
 # ---------------------------------------------------------------------------
