@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-# MCP Inspector: absolute paths + mcp[cli] for the Inspector-spawned uv environment.
-#
-# By default picks the first free ports from 6274 (UI) and 6277 (proxy) so stale
-# Inspectors do not block startup. Disable with:
-#   MCP_INSPECTOR_AUTO_PORT=0 CLIENT_PORT=6274 SERVER_PORT=6277 ./scripts/mcp-inspector.sh
+# Same as scripts/mcp-dev.ps1: mcp dev with repo paths + auto free Inspector ports.
 set -euo pipefail
 
 _find_free_port() {
@@ -43,6 +39,4 @@ else
   export SERVER_PORT="${SERVER_PORT:-6277}"
 fi
 
-exec npx -y @modelcontextprotocol/inspector \
-  uv run --with "mcp[cli]" --with-editable "$REPO_ROOT" \
-  mcp run "$SERVER_FILE"
+exec uv run --extra dev mcp dev --with-editable "$REPO_ROOT" "$SERVER_FILE"
