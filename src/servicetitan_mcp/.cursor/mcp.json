@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "servicetitan": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "${workspaceFolder}/../..",
+        "--extra",
+        "dev",
+        "mcp",
+        "run",
+        "src/server.py"
+      ]
+    }
+  }
+}

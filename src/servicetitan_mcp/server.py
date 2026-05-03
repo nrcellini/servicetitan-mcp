@@ -19,7 +19,7 @@ if str(_src_root) not in sys.path:
     sys.path.insert(0, str(_src_root))
 
 from dotenv import load_dotenv
-from fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP
 
 from servicetitan_mcp.client import init_client, close_client
 from servicetitan_mcp.models.types import ServiceTitanConfig
@@ -82,27 +82,27 @@ mcp = FastMCP(
 # ---------------------------------------------------------------------------
 
 # Customers
-mcp.tool(search_customers)
-mcp.tool(get_customer)
+mcp.add_tool(search_customers)
+mcp.add_tool(get_customer)
 
 # Jobs
-mcp.tool(list_jobs)
-mcp.tool(get_job)
-mcp.tool(create_job)
-mcp.tool(list_jobs_with_details)
+mcp.add_tool(list_jobs)
+mcp.add_tool(get_job)
+mcp.add_tool(create_job)
+mcp.add_tool(list_jobs_with_details)
 
 # Scheduling
-mcp.tool(get_available_appointments)
-mcp.tool(schedule_appointment)
+mcp.add_tool(get_available_appointments)
+mcp.add_tool(schedule_appointment)
 
 # Dispatching
-mcp.tool(list_technicians)
-mcp.tool(dispatch_technician)
-mcp.tool(get_dispatch_board)
+mcp.add_tool(list_technicians)
+mcp.add_tool(dispatch_technician)
+mcp.add_tool(get_dispatch_board)
 
 # Invoices
-mcp.tool(get_invoice)
-mcp.tool(list_unpaid_invoices)
+mcp.add_tool(get_invoice)
+mcp.add_tool(list_unpaid_invoices)
 
 
 # ---------------------------------------------------------------------------
